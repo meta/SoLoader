@@ -25,12 +25,23 @@ import javax.annotation.Nullable;
 
 public class ElfZipFileChannel implements ElfByteChannel {
 
+  // MinElf reads ELF fields a few bytes at a time and moves back and forth between the headers,
+  // the dynamic section and the string table. Serving those reads from a fixed-size buffer turns
+  // the hundreds of tiny stream reads it makes per library into a few buffer refills.
+  private static final int BUFFER_SIZE = 8192;
+
   private @Nullable InputStream mIs;
   private final ZipEntry mZipEntry;
   private final ZipFile mZipFile;
   private final long mLength;
   private boolean mOpened;
   private long mPos;
+  // Position of mIs within the entry.
+  private long mStreamPos;
+  private final byte[] mBuffer = new byte[BUFFER_SIZE];
+  // Entry position of mBuffer[0], and the number of valid bytes in mBuffer.
+  private long mBufferStart;
+  private int mBufferLength;
 
   public ElfZipFileChannel(ZipFile zipFile, ZipEntry zipEntry) throws IOException {
     mZipFile = zipFile;
@@ -38,6 +49,7 @@ public class ElfZipFileChannel implements ElfByteChannel {
 
     mOpened = true;
     mPos = 0;
+    mStreamPos = 0;
     mLength = mZipEntry.getSize();
     mIs = mZipFile.getInputStream(mZipEntry);
     if (mIs == null) {
@@ -56,23 +68,10 @@ public class ElfZipFileChannel implements ElfByteChannel {
       throw new IOException(mZipEntry.getName() + "'s InputStream is null");
     }
 
-    if (newPosition == mPos) {
-      return this;
-    }
-
     if (newPosition > mLength) {
       newPosition = mLength;
     }
-    if (newPosition >= mPos) {
-      mIs.skip(newPosition - mPos);
-    } else {
-      mIs.close();
-      mIs = mZipFile.getInputStream(mZipEntry);
-      if (mIs == null) {
-        throw new IOException(mZipEntry.getName() + "'s InputStream is null");
-      }
-      mIs.skip(newPosition);
-    }
+    // The stream itself is only moved when the buffer needs refilling.
     mPos = newPosition;
     return this;
   }
@@ -106,6 +105,9 @@ public class ElfZipFileChannel implements ElfByteChannel {
     if (mIs == null) {
       throw new IOException("InputStream is null");
     }
+    if (position < 0) {
+      throw new IllegalArgumentException("Negative position: " + position);
+    }
 
     int wanted = dst.remaining();
     long possible = mLength - position;
@@ -115,17 +117,70 @@ public class ElfZipFileChannel implements ElfByteChannel {
     if (wanted > (int) possible) {
       wanted = (int) possible;
     }
-    position(position);
-    if (dst.hasArray()) {
-      mIs.read(dst.array(), 0, wanted);
-      dst.position(dst.position() + wanted);
-    } else {
-      byte[] bytes = new byte[wanted];
-      mIs.read(bytes, 0, wanted);
-      dst.put(bytes, 0, wanted);
+    if (wanted == 0) {
+      return 0;
     }
-    mPos += wanted;
-    return wanted;
+    int copied = 0;
+    while (copied < wanted) {
+      final long pos = position + copied;
+      if (pos < mBufferStart || pos >= mBufferStart + mBufferLength) {
+        fillBuffer(pos - (pos % BUFFER_SIZE));
+        if (pos >= mBufferStart + mBufferLength) {
+          break; // The entry ended earlier than its declared size
+        }
+      }
+      final int offset = (int) (pos - mBufferStart);
+      final int count = Math.min(wanted - copied, mBufferLength - offset);
+      dst.put(mBuffer, offset, count);
+      copied += count;
+    }
+    mPos = position + copied;
+    return copied == 0 ? -1 : copied;
+  }
+
+  /** Fills mBuffer with the entry's bytes starting at {@code start}. */
+  private void fillBuffer(long start) throws IOException {
+    mBufferStart = start;
+    mBufferLength = 0;
+    if (!seekStream(start)) {
+      return; // The entry ended before start
+    }
+    final int length = (int) Math.min(BUFFER_SIZE, mLength - start);
+    while (mBufferLength < length) {
+      final int count = mIs.read(mBuffer, mBufferLength, length - mBufferLength);
+      if (count < 0) {
+        break;
+      }
+      mBufferLength += count;
+      mStreamPos += count;
+    }
+  }
+
+  /** Moves mIs to {@code target}. Returns false if the entry ends before it. */
+  private boolean seekStream(long target) throws IOException {
+    if (target < mStreamPos) {
+      mIs.close();
+      mIs = mZipFile.getInputStream(mZipEntry);
+      if (mIs == null) {
+        throw new IOException(mZipEntry.getName() + "'s InputStream is null");
+      }
+      mStreamPos = 0;
+    }
+    while (mStreamPos < target) {
+      final long skipped = mIs.skip(target - mStreamPos);
+      if (skipped > 0) {
+        mStreamPos += skipped;
+        continue;
+      }
+      // skip() may return 0 before the end of the stream, so read and discard instead. Callers
+      // refill mBuffer right after this.
+      final int count = mIs.read(mBuffer, 0, (int) Math.min(BUFFER_SIZE, target - mStreamPos));
+      if (count < 0) {
+        return false;
+      }
+      mStreamPos += count;
+    }
+    return true;
   }
 
   @Override
