@@ -22,15 +22,18 @@ import android.os.StrictMode;
 import android.text.TextUtils;
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 /**
@@ -49,6 +52,12 @@ public class DirectApkSoSource extends SoSource implements RecoverableSoSource {
   // <key: so name, value libs set>
   private final Map<String, Set<String>> mDepsCache = new HashMap<>();
   private final Set<String> mDirectApkLdPaths;
+
+  // <key: apk path, value: opened apk>. Opening a ZipFile parses the APK's whole central
+  // directory, so its cost grows with the number of entries in the APK. Reuse one per APK instead
+  // of re-opening it for every library and every ABI.
+  @GuardedBy("mZipFiles")
+  private final Map<String, ZipFile> mZipFiles = new HashMap<>();
 
   public DirectApkSoSource(ApplicationInfo aInfo) {
     super();
@@ -182,6 +191,7 @@ public class DirectApkSoSource extends SoSource implements RecoverableSoSource {
   }
 
   private void prepare() throws IOException {
+    final Set<String> apksWithLibs = new HashSet<>();
     for (String directApkLdPath : mDirectApkLdPaths) {
       String subDir = null;
       if (!TextUtils.isEmpty(directApkLdPath)) {
@@ -194,41 +204,77 @@ public class DirectApkSoSource extends SoSource implements RecoverableSoSource {
       if (TextUtils.isEmpty(subDir)) {
         continue;
       }
-      try (ZipFile mZipFile = new ZipFile(getApkPathFromLdPath(directApkLdPath))) {
-        Enumeration<? extends ZipEntry> entries = mZipFile.entries();
-        while (entries.hasMoreElements()) {
-          ZipEntry entry = entries.nextElement();
-          if (entry != null
-              && entry.getMethod() == ZipEntry.STORED
-              && entry.getName().startsWith(subDir)
-              && entry.getName().endsWith(".so")) {
-            final String soName = entry.getName().substring(subDir.length() + 1);
-            appendLibsInApkCache(directApkLdPath, soName);
-          }
+      final String apkPath = getApkPathFromLdPath(directApkLdPath);
+      final ZipFile zipFile = getZipFile(apkPath);
+      Enumeration<? extends ZipEntry> entries = zipFile.entries();
+      while (entries.hasMoreElements()) {
+        ZipEntry entry = entries.nextElement();
+        if (entry != null
+            && entry.getMethod() == ZipEntry.STORED
+            && entry.getName().startsWith(subDir)
+            && entry.getName().endsWith(".so")) {
+          final String soName = entry.getName().substring(subDir.length() + 1);
+          appendLibsInApkCache(directApkLdPath, soName);
+          apksWithLibs.add(apkPath);
         }
       }
     }
+    // Only APKs with native libraries are read again, so don't keep the others (such as language
+    // or density splits) open.
+    closeZipFilesExcept(apksWithLibs);
   }
 
   private void buildLibDepsCache(String directApkLdPath, String soName) throws IOException {
     final String apkPath = getApkPathFromLdPath(directApkLdPath);
 
-    try (ZipFile mZipFile = new ZipFile(apkPath)) {
-      final String path = getLibraryPathInApk(directApkLdPath, soName);
-      final ZipEntry entry = mZipFile.getEntry(path);
+    final ZipFile zipFile = getZipFile(apkPath);
+    final String path = getLibraryPathInApk(directApkLdPath, soName);
+    final ZipEntry entry = zipFile.getEntry(path);
 
-      if (entry == null) {
-        LogUtil.e(SoLoader.TAG, path + " not found in " + apkPath);
-        return;
+    if (entry == null) {
+      LogUtil.e(SoLoader.TAG, path + " not found in " + apkPath);
+      return;
+    }
+
+    buildLibDepsCacheImpl(directApkLdPath, zipFile, entry, soName);
+  }
+
+  private ZipFile getZipFile(String apkPath) throws IOException {
+    synchronized (mZipFiles) {
+      ZipFile zipFile = mZipFiles.get(apkPath);
+      if (zipFile == null) {
+        zipFile = new ZipFile(apkPath);
+        mZipFiles.put(apkPath, zipFile);
       }
+      return zipFile;
+    }
+  }
 
-      buildLibDepsCacheImpl(directApkLdPath, mZipFile, entry, soName);
+  private void closeZipFiles() {
+    closeZipFilesExcept(Collections.<String>emptySet());
+  }
+
+  private void closeZipFilesExcept(Set<String> apkPaths) {
+    synchronized (mZipFiles) {
+      Iterator<Map.Entry<String, ZipFile>> it = mZipFiles.entrySet().iterator();
+      while (it.hasNext()) {
+        Map.Entry<String, ZipFile> entry = it.next();
+        if (apkPaths.contains(entry.getKey())) {
+          continue;
+        }
+        try {
+          entry.getValue().close();
+        } catch (IOException e) {
+          LogUtil.w(SoLoader.TAG, "Failed to close " + entry.getKey(), e);
+        }
+        it.remove();
+      }
     }
   }
 
   private void buildLibDepsCacheImpl(
-      String directApkLdPath, ZipFile mZipFile, ZipEntry entry, String soName) throws IOException {
-    try (ElfByteChannel bc = new ElfZipFileChannel(mZipFile, entry)) {
+      String directApkLdPath, ZipFile zipFile, ZipEntry entry, String soName) throws IOException {
+    try (ElfByteChannel bc = new ElfZipFileChannel(zipFile, entry)) {
       for (String dependency : NativeDeps.getDependencies(soName, bc)) {
         if (dependency.startsWith("/")) {
           // Bionic dynamic linker could correctly resolving system dependencies, we don't
@@ -292,6 +338,9 @@ public class DirectApkSoSource extends SoSource implements RecoverableSoSource {
 
   @Override
   public SoSource recover(ApplicationInfo aInfo) {
+    // Recovery holds SoLoader's sources lock for writing, so no load is using these. If this source
+    // stays in use, it re-opens the APKs on demand.
+    closeZipFiles();
     DirectApkSoSource recovered = new DirectApkSoSource(aInfo);
     try {
       recovered.prepare();
