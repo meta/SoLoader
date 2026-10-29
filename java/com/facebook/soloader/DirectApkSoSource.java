@@ -120,15 +120,25 @@ public class DirectApkSoSource extends SoSource implements RecoverableSoSource {
   /*package*/ static Set<String> getDirectApkLdPaths(ApplicationInfo aInfo) {
     Set<String> directApkPathSet = new LinkedHashSet<>();
 
+    // The ABI the package manager installed the app for is searched first. On x86_64 hosts that
+    // also run ARM code it is not always SUPPORTED_ABIS[0].
+    @Nullable String installedAbi = null;
+    try {
+      installedAbi = SysUtil.getPrimaryAbi(aInfo);
+    } catch (IllegalStateException e) {
+      // No supported ABIs: getFallbackApkLdPath logs it and returns null.
+    }
+
     final String apkPath = aInfo.sourceDir;
-    final @Nullable Set<String> fallbackApkLdPath = getFallbackApkLdPath(apkPath);
+    final @Nullable Set<String> fallbackApkLdPath = getFallbackApkLdPath(apkPath, installedAbi);
     if (fallbackApkLdPath != null && !fallbackApkLdPath.isEmpty()) {
       directApkPathSet.addAll(fallbackApkLdPath);
     }
 
     if (aInfo.splitSourceDirs != null) {
       for (String splitApkPath : aInfo.splitSourceDirs) {
-        final @Nullable Set<String> fallbackSplitApkLdPath = getFallbackApkLdPath(splitApkPath);
+        final @Nullable Set<String> fallbackSplitApkLdPath =
+            getFallbackApkLdPath(splitApkPath, installedAbi);
         if (fallbackSplitApkLdPath != null && !fallbackSplitApkLdPath.isEmpty()) {
           directApkPathSet.addAll(fallbackSplitApkLdPath);
         }
@@ -138,7 +148,8 @@ public class DirectApkSoSource extends SoSource implements RecoverableSoSource {
     return directApkPathSet;
   }
 
-  private static @Nullable Set<String> getFallbackApkLdPath(String apkPath) {
+  private static @Nullable Set<String> getFallbackApkLdPath(
+      String apkPath, @Nullable String installedAbi) {
     final String[] supportedAbis = SysUtil.getSupportedAbis();
     if (apkPath == null || apkPath.isEmpty()) {
       LogUtil.w(
@@ -154,6 +165,9 @@ public class DirectApkSoSource extends SoSource implements RecoverableSoSource {
       return null;
     }
     Set<String> apkLdPaths = new LinkedHashSet<>();
+    if (installedAbi != null) {
+      apkLdPaths.add(apkPath + "!/lib/" + installedAbi);
+    }
     for (String supportedAbi : supportedAbis) {
       apkLdPaths.add(apkPath + "!/lib/" + supportedAbi);
     }
