@@ -24,9 +24,16 @@ implementation 'com.facebook.soloader:soloader:0.13.0+'
 ```
 
 ## Building from source
-To build SoLoader from source you'll need [Buck](https://buckbuild.com/).
-Once you have Buck installed execute following commands from the project root
-directory:
+To build the Android library with Gradle, install the Android SDK and run:
+
+```shell
+./gradlew assembleDebug
+```
+
+The AAR is written to `build/outputs/aar/`.
+
+The existing [Buck](https://buckbuild.com/) build is also available. Once you have
+Buck installed, run the following commands from the project root directory:
 ```shell
   buck fetch //...
   buck build :soloader
