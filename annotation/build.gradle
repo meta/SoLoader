@@ -1,5 +1,16 @@
 plugins {
     id 'java-library'
+    id 'maven-publish'
+}
+
+description = 'DoNotOptimize class'
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    sourceCompatibility = JavaVersion.VERSION_1_7
+    targetCompatibility = JavaVersion.VERSION_1_7
+    withSourcesJar()
+    withJavadocJar()
 }
 
 sourceSets {
@@ -8,6 +19,14 @@ sourceSets {
             srcDirs = ['../java']
             include 'com/facebook/soloader/DoNotOptimize.java'
             include 'com/facebook/soloader/DoNotStripAny.java'
+        }
+    }
+}
+
+publishing {
+    publications {
+        annotation(MavenPublication) {
+            from components.java
         }
     }
 }

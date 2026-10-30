@@ -1,2 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    android:versionCode="1"
+    android:versionName="0.1.0">
+    <uses-sdk android:targetSdkVersion="23" />
+    <application>
+        <meta-data
+            android:name="com.facebook.soloader.enabled"
+            android:value="false" />
+    </application>
+</manifest>

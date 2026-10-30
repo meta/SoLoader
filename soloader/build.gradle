@@ -1,13 +1,24 @@
 plugins {
     id 'com.android.library'
+    id 'maven-publish'
 }
 
+description = 'Reliable native code loader for Android'
+
 android {
-    namespace 'com.facebook.soloader'
-    compileSdk 36
+    namespace = 'com.facebook.soloader'
+    compileSdk = 36
 
     defaultConfig {
-        minSdk 21
+        minSdk = 9
+        targetSdk = 23
+        versionCode = 1
+        versionName = '0.1.0'
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_7
+        targetCompatibility = JavaVersion.VERSION_1_7
     }
 
     sourceSets {
@@ -21,10 +32,27 @@ android {
             }
         }
     }
+
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
 }
 
 dependencies {
-    compileOnly project(':annotation')
-    compileOnly project(':nativeloader')
+    api project(':annotation')
+    api project(':nativeloader')
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            soloader(MavenPublication) {
+                from components.release
+            }
+        }
+    }
 }

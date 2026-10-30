@@ -1,3 +1,47 @@
 plugins {
     id 'com.android.library' version '9.2.1' apply false
 }
+
+def artifactVersions = ['ANNOTATION', 'NATIVELOADER', 'SOLOADER'].collect { artifact ->
+    def matcher = file("artifacts/${artifact}").text =~ /(?m)^VERSION\s*=\s*['"]([^'"]+)['"]/
+    if (!matcher.find()) {
+        throw new GradleException("Missing version in artifacts/${artifact}")
+    }
+    matcher.group(1)
+}
+if (artifactVersions.toSet().size() != 1) {
+    throw new GradleException("SoLoader artifact versions must match: ${artifactVersions}")
+}
+
+subprojects {
+    group = 'com.facebook.soloader'
+    version = artifactVersions[0]
+    def publishingProject = project
+
+    pluginManager.withPlugin('maven-publish') {
+        publishing.publications.withType(MavenPublication).configureEach {
+            pom {
+                name = 'SoLoader'
+                description = publishingProject.description
+                url = 'https://github.com/facebook/soloader'
+                licenses {
+                    license {
+                        name = 'Apache-2'
+                        url = 'https://github.com/facebook/soloader/blob/main/LICENSE'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'facebook'
+                        name = 'Facebook'
+                    }
+                }
+                scm {
+                    url = 'https://github.com/facebook/soloader.git'
+                    connection = 'scm:git:https://github.com/facebook/soloader.git'
+                    developerConnection = 'scm:git:git@github.com:facebook/soloader.git'
+                }
+            }
+        }
+    }
+}

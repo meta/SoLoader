@@ -26,7 +26,7 @@ implementation 'com.facebook.soloader:soloader:0.13.0+'
 
 ## Building from source
 To build the Android library and its two Java dependencies with Gradle, install
-the Android SDK and run:
+the Android SDK and JDK 17, then run:
 
 ```shell
 ./gradlew :soloader:assembleDebug :annotation:jar :nativeloader:jar
@@ -34,6 +34,9 @@ the Android SDK and run:
 
 The AAR is written to `soloader/build/outputs/aar/`, and the annotation and
 nativeloader JARs to their respective `build/libs/` directories.
+Run `./gradlew publishToMavenLocal` to publish all three artifacts to your local
+Maven repository, using the version from the `artifacts/` configuration files.
+The published class files target Java 7, matching earlier SoLoader releases.
 
 The existing [Buck](https://buckbuild.com/) build is also available. Once you have
 Buck installed, run the following commands from the project root directory:

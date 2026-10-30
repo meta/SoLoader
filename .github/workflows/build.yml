@@ -20,5 +20,5 @@ jobs:
           java-version: '17'
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-      - name: Build Android AAR and Java archives
-        run: ./gradlew :soloader:assembleDebug :annotation:jar :nativeloader:jar
+      - name: Build and publish artifacts to Maven Local
+        run: ./gradlew :soloader:assembleDebug publishToMavenLocal -Dmaven.repo.local="$RUNNER_TEMP/soloader-m2"
