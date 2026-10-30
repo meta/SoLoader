@@ -1,5 +1,25 @@
 plugins {
     id 'com.android.library' version '9.2.1' apply false
+    id 'com.diffplug.spotless' version '8.0.0'
+}
+
+spotless {
+    java {
+        target 'java/**/*.java'
+        googleJavaFormat('1.25.2')
+    }
+}
+
+tasks.register('format') {
+    group = 'formatting'
+    description = 'Format all SoLoader Java sources.'
+    dependsOn 'spotlessApply'
+}
+
+tasks.register('formatCheck') {
+    group = 'verification'
+    description = 'Check formatting of all SoLoader Java sources.'
+    dependsOn 'spotlessCheck'
 }
 
 def artifactVersions = ['ANNOTATION', 'NATIVELOADER', 'SOLOADER'].collect { artifact ->

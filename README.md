@@ -38,6 +38,14 @@ Run `./gradlew publishToMavenLocal` to publish all three artifacts to your local
 Maven repository, using the version from the `artifacts/` configuration files.
 The published class files target Java 7, matching earlier SoLoader releases.
 
+## Formatting Java sources
+
+From this directory, run `./gradlew format` to format all Java sources, or
+`./gradlew formatCheck` to check them without making changes. Both commands work
+in a standalone checkout or in `fbsource/fbandroid/libraries/soloader` and use a
+pinned Google Java Format version downloaded by Gradle. No formatter binary is
+stored in the repository.
+
 The existing [Buck](https://buckbuild.com/) build is also available. Once you have
 Buck installed, run the following commands from the project root directory:
 ```shell
