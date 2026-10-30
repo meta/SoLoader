@@ -1,6 +1,5 @@
 # SoLoader
 
-[![Build CI](https://github.com/facebook/soloader/actions/workflows/build.yml/badge.svg)](https://github.com/facebook/SoLoader/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.facebook.soloader/soloader/badge.svg?style=flat)](https://maven-badges.herokuapp.com/maven-central/com.facebook.soloader/soloader)
 
