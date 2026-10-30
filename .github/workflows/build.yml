@@ -1,14 +1,24 @@
 name: Build
-on: [push]
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Buck build
-        uses: passy/run-buck@v0.1.0
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
-          commands: '/opt/android-sdk-linux/tools/bin/sdkmanager "build-tools;27.0.3" "platforms;android-26" > /dev/null; buck fetch //...; buck build :soloader'
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+          distribution: zulu
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Build and publish artifacts to Maven Local
+        run: ./gradlew :soloader:assembleDebug publishToMavenLocal -Dmaven.repo.local="$RUNNER_TEMP/soloader-m2"
