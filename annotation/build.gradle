@@ -1,0 +1,13 @@
+plugins {
+    id 'java-library'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['../java']
+            include 'com/facebook/soloader/DoNotOptimize.java'
+            include 'com/facebook/soloader/DoNotStripAny.java'
+        }
+    }
+}

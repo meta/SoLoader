@@ -1,6 +1,9 @@
 name: Build
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 permissions:
   contents: read
@@ -17,5 +20,5 @@ jobs:
           java-version: '17'
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-      - name: Build Android AAR
-        run: ./gradlew assembleDebug
+      - name: Build Android AAR and Java archives
+        run: ./gradlew :soloader:assembleDebug :annotation:jar :nativeloader:jar

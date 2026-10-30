@@ -1,0 +1,12 @@
+plugins {
+    id 'java-library'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['../java']
+            include 'com/facebook/soloader/nativeloader/*.java'
+        }
+    }
+}

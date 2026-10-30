@@ -3,7 +3,7 @@
 /buck-cache
 /buck-out
 /.gradle
-/build
+/**/build
 /.buckd
 PROJECTc
 *~

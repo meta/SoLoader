@@ -1,5 +1,6 @@
 # SoLoader
 
+[![Build CI](https://github.com/facebook/soloader/actions/workflows/build.yml/badge.svg)](https://github.com/facebook/SoLoader/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.facebook.soloader/soloader/badge.svg?style=flat)](https://maven-badges.herokuapp.com/maven-central/com.facebook.soloader/soloader)
 
@@ -24,13 +25,15 @@ implementation 'com.facebook.soloader:soloader:0.13.0+'
 ```
 
 ## Building from source
-To build the Android library with Gradle, install the Android SDK and run:
+To build the Android library and its two Java dependencies with Gradle, install
+the Android SDK and run:
 
 ```shell
-./gradlew assembleDebug
+./gradlew :soloader:assembleDebug :annotation:jar :nativeloader:jar
 ```
 
-The AAR is written to `build/outputs/aar/`.
+The AAR is written to `soloader/build/outputs/aar/`, and the annotation and
+nativeloader JARs to their respective `build/libs/` directories.
 
 The existing [Buck](https://buckbuild.com/) build is also available. Once you have
 Buck installed, run the following commands from the project root directory:

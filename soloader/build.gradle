@@ -1,0 +1,30 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'com.facebook.soloader'
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 21
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile '../src/main/AndroidManifest.xml'
+            java {
+                srcDirs = ['../java']
+                exclude 'com/facebook/soloader/DoNotOptimize.java'
+                exclude 'com/facebook/soloader/DoNotStripAny.java'
+                exclude 'com/facebook/soloader/nativeloader/**'
+            }
+        }
+    }
+}
+
+dependencies {
+    compileOnly project(':annotation')
+    compileOnly project(':nativeloader')
+    compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
+}
