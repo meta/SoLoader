@@ -364,11 +364,31 @@ public class SoLoader {
    * @param externalSoMapping the custom {@link ExternalSoMapping} if the App is using SoMerging.
    */
   public static void init(Context context, @Nullable ExternalSoMapping externalSoMapping) {
+    init(context, externalSoMapping, 0);
+  }
+
+  /**
+   * Initializes native code loading for this app with the given flags and an {@link
+   * ExternalSoMapping}; this class's other static facilities cannot be used until this {@link
+   * #init} is called. This method is idempotent: calls after the first are ignored.
+   *
+   * <p>This is used only by apps that use SoMerging in OSS, such as React Native apps. Passing
+   * {@link #SOLOADER_ENABLE_SYSTEMLOAD_WRAPPER_SOSOURCE} makes SoLoader load each merged library
+   * with a single {@code System.loadLibrary} call, leaving its dependencies to the dynamic linker
+   * instead of resolving them from the ELF headers in Java, which is cheaper on the critical path
+   * of app startup for apps whose libraries ship uncompressed in the APK.
+   *
+   * @param context application context
+   * @param externalSoMapping the custom {@link ExternalSoMapping} if the App is using SoMerging.
+   * @param flags Zero or more of the SOLOADER_* flags
+   */
+  public static void init(
+      Context context, @Nullable ExternalSoMapping externalSoMapping, int flags) {
     synchronized (SoLoader.class) {
       SoLoader.externalSoMapping = externalSoMapping;
     }
     try {
-      init(context, 0);
+      init(context, flags);
     } catch (IOException ex) {
       throw new RuntimeException(ex);
     }
