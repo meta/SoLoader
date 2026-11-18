@@ -1560,4 +1560,16 @@ public class SoLoader {
   public static int getLoadedLibrariesCount() {
     return sLoadedLibraries.size();
   }
+
+  /**
+   * Whether SoLoader has loaded the library with this soname (e.g. "libfoo.so"; for a merged
+   * library, the library it is merged into): true once its dlopen has returned, before {@link
+   * com.facebook.soloader.observer.Observer#onLoadLibraryEnd} reports it, though for a merged
+   * library possibly before its own JNI_OnLoad has run. Always false for a library loaded around
+   * SoLoader's own loading: with SoLoader disabled, through the system-app wrapper, or off Android.
+   */
+  public static boolean isLoaded(@Nullable String soName) {
+    // The set cannot hold null, and asking it about null throws.
+    return soName != null && sLoadedLibraries.contains(soName);
+  }
 }
