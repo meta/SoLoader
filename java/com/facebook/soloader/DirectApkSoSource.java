@@ -178,14 +178,22 @@ public class DirectApkSoSource extends SoSource implements RecoverableSoSource {
       String directApkLdPath, String soName, int loadFlags, StrictMode.ThreadPolicy threadPolicy)
       throws IOException {
     Set<String> dependencies = getDepsFromCache(directApkLdPath, soName);
-    if (dependencies == null) {
-      buildLibDepsCache(directApkLdPath, soName);
-      dependencies = getDepsFromCache(directApkLdPath, soName);
-    }
-
     if (dependencies != null) {
       for (String dependency : dependencies) {
         SoLoader.loadDependency(dependency, loadFlags, threadPolicy);
+      }
+      return;
+    }
+
+    // Dependencies are loaded while the APK is still open so that their own nested opens of the
+    // same APK share its parsed central directory instead of parsing it again per library.
+    try (ZipFile apk = new ZipFile(getApkPathFromLdPath(directApkLdPath))) {
+      buildLibDepsCache(directApkLdPath, apk, soName);
+      dependencies = getDepsFromCache(directApkLdPath, soName);
+      if (dependencies != null) {
+        for (String dependency : dependencies) {
+          SoLoader.loadDependency(dependency, loadFlags, threadPolicy);
+        }
       }
     }
   }
@@ -224,20 +232,17 @@ public class DirectApkSoSource extends SoSource implements RecoverableSoSource {
     }
   }
 
-  private void buildLibDepsCache(String directApkLdPath, String soName) throws IOException {
-    final String apkPath = getApkPathFromLdPath(directApkLdPath);
+  private void buildLibDepsCache(String directApkLdPath, ZipFile apk, String soName)
+      throws IOException {
+    final String path = getLibraryPathInApk(directApkLdPath, soName);
+    final ZipEntry entry = apk.getEntry(path);
 
-    try (ZipFile mZipFile = new ZipFile(apkPath)) {
-      final String path = getLibraryPathInApk(directApkLdPath, soName);
-      final ZipEntry entry = mZipFile.getEntry(path);
-
-      if (entry == null) {
-        LogUtil.e(SoLoader.TAG, path + " not found in " + apkPath);
-        return;
-      }
-
-      buildLibDepsCacheImpl(directApkLdPath, mZipFile, entry, soName);
+    if (entry == null) {
+      LogUtil.e(SoLoader.TAG, path + " not found in " + apk.getName());
+      return;
     }
+
+    buildLibDepsCacheImpl(directApkLdPath, apk, entry, soName);
   }
 
   private void buildLibDepsCacheImpl(
