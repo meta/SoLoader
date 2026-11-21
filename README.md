@@ -54,6 +54,34 @@ Buck installed, run the following commands from the project root directory:
 ```
 The build command generates `buck-out/gen/soloader.aar` file.
 
+## Troubleshooting "couldn't find DSO to load"
+
+This error means SoLoader could not load the named library from its configured
+sources. The named library can also be a dependency of the one your app requested.
+
+1. Keep the full exception and the preceding SoLoader logs. Current versions include
+   `existing SO sources` and, when an application context is available, `Native lib dir`
+   in the not-found error. `existing SO sources` lists the sources SoLoader tried;
+   `Native lib dir` is the app's native library directory.
+2. Inspect the APKs installed on the affected device, including ABI splits if the app
+   is delivered as an Android App Bundle. With a local copy of each APK, list its entries:
+
+   ```shell
+   unzip -l app.apk
+   ```
+
+   Replace `app.apk` with the local APK path. For standard APK packaging, look for
+   `lib/<abi>/<library>`, for example `lib/arm64-v8a/libhermes.so`. Compare the ABI with
+   the source paths in the error; a library under a different ABI is not a match.
+   If the entry is missing, check the dependency that supplies the native library and
+   the app's native-library packaging configuration.
+3. `DirectApkSoSource` loads only libraries stored uncompressed in the APK and skips
+   compressed entries. `unzip -lv app.apk` shows the compression method of each entry.
+   If a linker error was logged, inspect its missing-dependency or incompatible-ABI
+   details. `DirectApkSoSource` logs an `UnsatisfiedLinkError` from loading an entry
+   and continues searching, so the final not-found message does not by itself prove
+   the file is absent.
+
 ## Join our community
 Please use our [issues page](https://github.com/facebook/soloader/issues) to let us know of any problems.
 See the [CONTRIBUTING](https://github.com/facebook/soloader/blob/main/CONTRIBUTING.md) file for how to
